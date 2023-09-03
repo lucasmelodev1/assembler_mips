@@ -15,7 +15,8 @@ impl Label {
         current_line_number: usize,
     ) -> i32 {
         let label_line = Label::find_label_line(labels, &label_name);
-        label_line as i32 - current_line_number as i32
+        let current_line = current_line_number;
+        label_line as i32 - current_line as i32
     }
 
     pub fn is_label(word: &str) -> bool {
@@ -29,12 +30,21 @@ impl Label {
         true
     }
 
-    pub fn find_label_line(labels: &Vec<Label>, label_name: &str) -> usize {
+    fn find_label_line(labels: &Vec<Label>, label_name: &str) -> usize {        
         labels
             .iter()
             .find(|label| label.name == label_name)
             .expect("Label nao encontrado")
             .line
+    }
+
+    pub fn find_label_line_address(labels: &Vec<Label>, label_name: &str) -> usize {
+        (labels
+            .iter()
+            .find(|label| label.name == label_name)
+            .expect("Label nao encontrado")
+            .line * 4)
+            + 1048570
     }
 
     pub fn find_labels(file_to_read: &str) -> Vec<Label> {

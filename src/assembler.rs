@@ -57,19 +57,20 @@ impl<'a> Assembler<'a> {
                 InstructionFormat::R { op_code, function } => {
                     let rd = Register::get_register(words[1]);
                     let rs = Register::get_register(words[2]);
-                    let has_rt = words[3].as_bytes()[0] == b'$';
+                    let has_shamt = words[3].as_bytes()[0] != b'$';
 
-                    if has_rt {
+                    if has_shamt {
+                        let rt = rs;
+                        let shamt = words[3].parse::<u8>().expect("Shamt de 8 bits invalido");
+                        binary.push_str(&format!(
+                            "{:06b}{:05b}{:05b}{:05b}{:05b}{:06b}",
+                            op_code, 0, rt, rd, shamt, function
+                        ));
+                    } else {
                         let rt = Register::get_register(words[3]);
                         binary.push_str(&format!(
                             "{:06b}{:05b}{:05b}{:05b}{:05b}{:06b}",
                             op_code, rs, rt, rd, 0, function
-                        ));
-                    } else {
-                        let shamt = words[3].parse::<u8>().expect("Shamt de 8 bits invalido");
-                        binary.push_str(&format!(
-                            "{:06b}{:05b}{:05b}{:05b}{:05b}{:06b}",
-                            op_code, rs, 0, rd, shamt, function
                         ));
                     }
                 }
@@ -87,7 +88,7 @@ impl<'a> Assembler<'a> {
                         );
                         binary.push_str(&format!(
                             "{:06b}{:05b}{:05b}{:016b}",
-                            op_code, rs, rt, relative_line
+                            op_code, rs, rt, relative_line as i16
                         ));
                     } else {
                         binary.push_str(&format!(
@@ -105,14 +106,10 @@ impl<'a> Assembler<'a> {
                     let constant = words[1];
 
                     if Label::is_label_reference(&constant) {
-                        let relative_line = Label::reference_to_relative_line(
-                            &self.labels,
-                            &constant,
-                            current_line_number,
-                        );
+                        let line = Label::find_label_line_address(&self.labels, &constant);
 
                         // Conversion from a 32 bit integer to 26 bit integer
-                        let masked_number = relative_line & ((1 << 26) - 1);
+                        let masked_number = line & 0x03FFFFFF;
 
                         binary.push_str(&format!("{:06b}{:026b}", op_code, masked_number));
                     } else {
@@ -143,9 +140,24 @@ impl<'a> Assembler<'a> {
     }
 
     fn to_hex(val: &str, len: usize) -> String {
-        let n: u32 =
-            u32::from_str_radix(val, 2).expect("Erro ao converter binario para hexadecimal");
-        format!("{:01$x}", n, len * 2)
+        // let n: i32 =
+        //     i32::from_str_radix(val, 2).expect("Erro ao converter binario para hexadecimal");
+        // format!("{:01$x}", n, len * 2)
+        // Parse the binary string as a u32 integer
+        println!("{}", val);
+        let decimal_value = u32::from_str_radix(val, 2);
+
+        // Check if the parsing was successful
+        match decimal_value {
+            Ok(value) => {
+                // Format the u32 integer as a hexadecimal string with a "0x" prefix
+                format!("0x{:08x}", value)
+            }
+            Err(_) => {
+                // Handle parsing errors (invalid binary string)
+                "Invalid binary string".to_string()
+            }
+        }
     }
 
     pub fn new(file_to_read: &str) -> Assembler {
