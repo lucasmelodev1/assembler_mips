@@ -57,8 +57,6 @@ impl<'a> Assembler<'a> {
 
             match instruction.format {
                 InstructionFormat::R { op_code, function } => {
-                    let rd = Register::get_register(words[1]);
-                    let rs = Register::get_register(words[2]);
                     let mut push_binary = || {
                         if ["mult", "multu", "div", "divu"].contains(&instruction.name) {
                             let rs = Register::get_register(words[1]);
@@ -75,13 +73,17 @@ impl<'a> Assembler<'a> {
                                     "{:06b}{:05b}{:05b}{:05b}{:05b}{:06b}",
                                     op_code, rs, 0, 0, 0, function
                                 ));
+                                return;
                             }
+                            let rd = Register::get_register(words[1]);
                             binary.push_str(&format!(
                                 "{:06b}{:05b}{:05b}{:05b}{:05b}{:06b}",
                                 op_code, 0, 0, rd, 0, function
                             ));
                             return;
                         }
+                        let rd = Register::get_register(words[1]);
+                        let rs = Register::get_register(words[2]);
                         let has_shamt = words[3].as_bytes()[0] != b'$';
 
                         if has_shamt {
@@ -117,8 +119,6 @@ impl<'a> Assembler<'a> {
                             ));
                             return;
                         }
-                        let rs = Register::get_register(words[1]);
-                        let rt = Register::get_register(words[2]);
 
                         if &instruction.name == &"lui" {
                             let rt = Register::get_register(words[1]);
@@ -133,6 +133,9 @@ impl<'a> Assembler<'a> {
                             ));
                             return;
                         }
+
+                        let rs = Register::get_register(words[1]);
+                        let rt = Register::get_register(words[2]);
 
                         let constant = words[3];
 
