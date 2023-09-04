@@ -4,7 +4,9 @@ use std::{
 };
 
 use crate::{
-    instruction::Instruction, instruction_format::InstructionFormat, label::Label,
+    instruction::{self, Instruction},
+    instruction_format::InstructionFormat,
+    label::Label,
     register::Register,
 };
 
@@ -57,50 +59,106 @@ impl<'a> Assembler<'a> {
                 InstructionFormat::R { op_code, function } => {
                     let rd = Register::get_register(words[1]);
                     let rs = Register::get_register(words[2]);
-                    let has_shamt = words[3].as_bytes()[0] != b'$';
+                    let mut push_binary = || {
+                        if ["mult", "multu", "div", "divu"].contains(&instruction.name) {
+                            let rs = Register::get_register(words[1]);
+                            let rt = Register::get_register(words[2]);
+                            binary.push_str(&format!(
+                                "{:06b}{:05b}{:05b}{:05b}{:05b}{:06b}",
+                                op_code, rs, rt, 0, 0, function
+                            ));
+                            return;
+                        } else if ["jr", "mfhi", "mflo"].contains(&instruction.name) {
+                            if instruction.name == "jr" {
+                                let rs = Register::get_register(words[1]);
+                                binary.push_str(&format!(
+                                    "{:06b}{:05b}{:05b}{:05b}{:05b}{:06b}",
+                                    op_code, rs, 0, 0, 0, function
+                                ));
+                            }
+                            binary.push_str(&format!(
+                                "{:06b}{:05b}{:05b}{:05b}{:05b}{:06b}",
+                                op_code, 0, 0, rd, 0, function
+                            ));
+                            return;
+                        }
+                        let has_shamt = words[3].as_bytes()[0] != b'$';
 
-                    if has_shamt {
-                        let rt = rs;
-                        let shamt = words[3].parse::<u8>().expect("Shamt de 8 bits invalido");
-                        binary.push_str(&format!(
-                            "{:06b}{:05b}{:05b}{:05b}{:05b}{:06b}",
-                            op_code, 0, rt, rd, shamt, function
-                        ));
-                    } else {
-                        let rt = Register::get_register(words[3]);
-                        binary.push_str(&format!(
-                            "{:06b}{:05b}{:05b}{:05b}{:05b}{:06b}",
-                            op_code, rs, rt, rd, 0, function
-                        ));
-                    }
+                        if has_shamt {
+                            let rt = rs;
+                            let shamt = words[3].parse::<u8>().expect("Shamt de 8 bits invalido");
+                            binary.push_str(&format!(
+                                "{:06b}{:05b}{:05b}{:05b}{:05b}{:06b}",
+                                op_code, 0, rt, rd, shamt, function
+                            ));
+                        } else {
+                            let rt = Register::get_register(words[3]);
+                            binary.push_str(&format!(
+                                "{:06b}{:05b}{:05b}{:05b}{:05b}{:06b}",
+                                op_code, rs, rt, rd, 0, function
+                            ));
+                        }
+                    };
+                    push_binary();
                 }
                 InstructionFormat::I { op_code } => {
-                    let rs = Register::get_register(words[1]);
-                    let rt = Register::get_register(words[2]);
+                    let mut push_binary = || {
+                        if ["lw", "sw"].contains(&instruction.name) {
+                            let rt = Register::get_register(words[1]);
+                            let offset = &words[2];
+                            let rs = &words[3][1..words[3].len() - 1];
 
-                    let constant = words[3];
+                            binary.push_str(&format!(
+                                "{:06b}{:05b}{:05b}{:016b}",
+                                op_code,
+                                Register::get_register(rs),
+                                rt,
+                                offset.parse::<i16>().unwrap()
+                            ));
+                            return;
+                        }
+                        let rs = Register::get_register(words[1]);
+                        let rt = Register::get_register(words[2]);
 
-                    if Label::is_label_reference(&constant) {
-                        let relative_line = Label::reference_to_relative_line(
-                            &self.labels,
-                            &constant,
-                            current_line_number,
-                        );
-                        binary.push_str(&format!(
-                            "{:06b}{:05b}{:05b}{:016b}",
-                            op_code, rs, rt, relative_line as i16
-                        ));
-                    } else {
-                        binary.push_str(&format!(
-                            "{:06b}{:05b}{:05b}{:016b}",
-                            op_code,
-                            rs,
-                            rt,
-                            constant
-                                .parse::<i16>()
-                                .expect("Constante de 16 bits invalida")
-                        ));
-                    }
+                        if &instruction.name == &"lui" {
+                            let rt = Register::get_register(words[1]);
+                            let constant = words[2];
+
+                            binary.push_str(&format!(
+                                "{:06b}{:05b}{:05b}{:016b}",
+                                op_code,
+                                0,
+                                rt,
+                                constant.parse::<i16>().unwrap()
+                            ));
+                            return;
+                        }
+
+                        let constant = words[3];
+
+                        if Label::is_label_reference(&constant) {
+                            let relative_line = Label::reference_to_relative_line(
+                                &self.labels,
+                                &constant,
+                                current_line_number,
+                            );
+                            binary.push_str(&format!(
+                                "{:06b}{:05b}{:05b}{:016b}",
+                                op_code, rs, rt, relative_line as i16
+                            ));
+                        } else {
+                            binary.push_str(&format!(
+                                "{:06b}{:05b}{:05b}{:016b}",
+                                op_code,
+                                rs,
+                                rt,
+                                constant
+                                    .parse::<i16>()
+                                    .expect("Constante de 16 bits invalida")
+                            ));
+                        }
+                    };
+                    push_binary();
                 }
                 InstructionFormat::J { op_code } => {
                     let constant = words[1];
