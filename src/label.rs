@@ -3,6 +3,7 @@ use std::{
     io::{BufRead, BufReader},
 };
 
+#[derive(Debug)]
 pub struct Label {
     pub name: String,
     pub line: usize,
@@ -38,13 +39,18 @@ impl Label {
             .line
     }
 
-    pub fn find_label_line_address(labels: &Vec<Label>, label_name: &str) -> usize {
+    pub fn find_label_line_address(labels: &Vec<Label>, label_name: &str, address: bool) -> usize {
+        let mul = if address{
+            4
+        } else {
+            1
+        };
         (labels
             .iter()
             .find(|label| label.name == label_name)
             .expect("Label nao encontrado")
-            .line * 4)
-            + 1048570
+            .line * mul)
+            + 1048576
     }
 
     pub fn find_labels(file_to_read: &str) -> Vec<Label> {

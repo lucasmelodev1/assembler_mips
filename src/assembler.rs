@@ -134,32 +134,48 @@ impl<'a> Assembler<'a> {
                             return;
                         }
 
-                        let rs = Register::get_register(words[1]);
-                        let rt = Register::get_register(words[2]);
+                        if ["beq", "bne"].contains(&instruction.name) {
+                            let rs = Register::get_register(words[1]);
+                            let rt = Register::get_register(words[2]);
+                            let constant = words[3];
+
+                            if Label::is_label_reference(&constant) {
+                                let relative_line = Label::reference_to_relative_line(
+                                    &self.labels,
+                                    &constant,
+                                    current_line_number,
+                                );
+                                binary.push_str(&format!(
+                                    "{:06b}{:05b}{:05b}{:016b}",
+                                    op_code, rs, rt, relative_line as i16
+                                ));
+                            } else {
+                                binary.push_str(&format!(
+                                    "{:06b}{:05b}{:05b}{:016b}",
+                                    op_code,
+                                    rs,
+                                    rt,
+                                    constant
+                                        .parse::<i16>()
+                                        .expect("Constante de 16 bits invalida")
+                                ));
+                            }
+                            return;
+                        }
+
+                        let rs = Register::get_register(words[2]);
+                        let rt = Register::get_register(words[1]);
 
                         let constant = words[3];
 
-                        if Label::is_label_reference(&constant) {
-                            let relative_line = Label::reference_to_relative_line(
-                                &self.labels,
-                                &constant,
-                                current_line_number,
-                            );
-                            binary.push_str(&format!(
-                                "{:06b}{:05b}{:05b}{:016b}",
-                                op_code, rs, rt, relative_line as i16
-                            ));
-                        } else {
-                            binary.push_str(&format!(
-                                "{:06b}{:05b}{:05b}{:016b}",
-                                op_code,
-                                rs,
-                                rt,
-                                constant
-                                    .parse::<i16>()
-                                    .expect("Constante de 16 bits invalida")
-                            ));
-                        }
+                        binary.push_str(&format!(
+                            "{:06b}{:05b}{:05b}{:016b}",
+                            op_code,
+                            rs,
+                            rt,
+                            constant.parse::<i16>().unwrap()
+                        ));
+                        return;
                     };
                     push_binary();
                 }
@@ -167,7 +183,12 @@ impl<'a> Assembler<'a> {
                     let constant = words[1];
 
                     if Label::is_label_reference(&constant) {
-                        let line = Label::find_label_line_address(&self.labels, &constant);
+                        let address = if instruction.name == "j" {
+                            true
+                        } else {
+                            false
+                        };
+                        let line = Label::find_label_line_address(&self.labels, &constant, address);
 
                         // Conversion from a 32 bit integer to 26 bit integer
                         let masked_number = line & 0x03FFFFFF;
